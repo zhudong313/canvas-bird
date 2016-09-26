@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" id="viewport" content="width=device-width, initial-scale=1">
+	<title>bird</title>
+	<style type="text/css">
+		body,canvas{ margin: 0; padding: 0;}
+		body,html{ width: 100%; height:100%;}
+		body{ background:#6dc8cd; overflow:hidden;}
+	</style>
+</head>
+<body>
+	<script>
+		//用requestAnimationFrame替代setTimeout
+		window.requestAnimFrame = (function(){
+		   return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || function(callback){ window.setTimeout(callback, 1000/60);};})();
+		
+		
+		var bird={
+			birdUrl:'3.gif',//鸟图片
+			pipeUrlBottom:'2.png',//管道下
+			pipeUrlTop:'1.png',//管道上
+			ctx:null,
+			countStep:0,//记录移动多少距离
+			canvas:null,//记录canvas对象
+			pipeJson:{},//记录管道坐标及状态及高度
+			birdJson:{},//记录鸟的数据
+			birdDownSpeed:0,//下降的距离
+
+			runInto:function(){//检测碰撞
+				var adjustNum=5;//判断微调整
+				for(var i in this.pipeJson)
+				{
+					if(this.birdJson.x>this.pipeJson[i].top.x-this.birdJson.width+adjustNum && this.birdJson.x<this.pipeJson[i].top.x+62-adjustNum)
+					{
+						if(this.birdJson.y<this.pipeJson[i].top.height-adjustNum)//上管道碰撞
+						{
+							//alert("死了");
+							return true;
+						}
+						else if(this.birdJson.y>this.pipeJson[i].top.height+this.pipeJson[i].stepLong+adjustNum)//下管道碰撞
+						{
+							//alert("死了");
+							return true;
+						}
+					}
+
+				}
+			},
+
+			//让canvas全屏
+			resizeCanvas:function(){
+				var canvasAll=document.getElementsByTagName("canvas");
+				var canvas=canvasAll.length==0?document.createElement("canvas"):canvasAll[0];
+				var htmlNode=document.documentElement;//html节点
+				var webWidth=htmlNode.clientWidth;//网页可视宽度
+				var webHeight=htmlNode.clientHeight;//网页可视高度
+				canvas.width=webWidth;
+				canvas.height=webHeight;
+
+				this.ctx=canvas.getContext('2d');
+
+				if(canvasAll.length==0)//只有是创建的canvas才插入页面
+				{
+					var bodyNode=document.body;
+					bodyNode.insertBefore(canvas,bodyNode.firstChild);//插入canvas节点
+				}
+				this.canvas=canvas;
+				
+				var that=this;
+				function render(){
+					console.time("a");
+					that.ctx.clearRect(0,0,canvas.width+that.countStep,canvas.height);//清屏
+					that.countStep+=1;//that.countStep=that.countStep+1;
+					that.ctx.translate(-1,0);
+					that.birdDownSpeed+=2;
+					var birdY=that.birdJson.y?that.birdJson.y:parseInt(canvas.height/2-15);
+					that.birdJson=that.birdObjFun(parseInt(canvas.width/2-21-canvas.width/2/3)+that.countStep,(birdY*10+that.birdDownSpeed)/10)//绘制鸟
+
+					var setpPipeLong=320;//管道之间的距离
+
+					var pipeAllNum=parseInt(that.countStep/setpPipeLong);//应该渲染的管道
+					var pipeMaxNum=Math.ceil(canvas.width/320);//最多渲染这些即可
+					for(var i=0;i<=pipeAllNum;i++){
+						if(i<=pipeMaxNum)//能在屏幕看到的管道才进行渲染
+						{
+							//console.log(pipeMaxNum)
+							that.pipeJson[pipeAllNum-i]=that.pipeObjFun(canvas.width+(pipeAllNum-i)*setpPipeLong,pipeAllNum-i);//绘制管道
+						}
+						else{//删除多余的数据
+							delete that.pipeJson[pipeAllNum-i];
+						}
+					}
+					console.timeEnd("a");
+					if(that.runInto())
+					{
+						alert("鸟挂了，刷新页面");
+						window.location.reload();
+					}
+					
+				};		
+				//替代setInterval(render, 16)
+				(function animloop(){ 
+					requestAnimFrame(animloop); 
+					render(); 
+				})();
+			},
+
+			birdObjFun:function(x,y){
+				var imgObj=new Image();//或var imgObj=document.createElement("img");
+				imgObj.src=this.birdUrl;
+				this.ctx.drawImage(imgObj,x,y);
+
+				return {
+					x:x,
+					y:y,
+					width:42,
+					height:31
+				};
+			},
+			
+			pipeObjFun:function(x,pos){//pos表示位置
+
+				var stepLong=this.pipeJson[pos]?this.pipeJson[pos].stepLong:Math.floor(Math.random()*parseInt(this.canvas.height/4))+parseInt(this.canvas.height/4);//区间1/4到1/2的距离
+
+				var leaveLong=this.canvas.height-stepLong;//剩余的高度
+
+				var pipeObjTopHeight=this.pipeJson[pos]?this.pipeJson[pos].top.height:Math.floor(leaveLong*Math.random());//上管道的高度0-leaveLong;
+
+				var pipeObjBottomHeight=this.pipeJson[pos]?this.pipeJson[pos].bottom.height:leaveLong-pipeObjTopHeight;//下管道的高度0-leaveLong;
+
+				var imgObjTop=new Image();
+				imgObjTop.src=this.pipeUrlTop;
+				var topY=pipeObjTopHeight-600;
+				this.ctx.drawImage(imgObjTop,x,topY);
+				
+				var imgObjBottom=new Image();
+				imgObjBottom.src=this.pipeUrlBottom;
+				var bottomY=pipeObjTopHeight+stepLong;
+				this.ctx.drawImage(imgObjBottom,x,bottomY);
+
+				return {
+						stepLong:stepLong,
+						top:{
+							x:x,
+							y:topY,
+							height:pipeObjTopHeight
+						},
+						bottom:{
+							x:x,
+							y:bottomY,
+							height:pipeObjBottomHeight
+						}
+					};
+			},
+
+			init:function(){//初始化函数
+				var that=this;
+				this.resizeCanvas();
+
+				window.addEventListener("resize",function(){
+					that.resizeCanvas();
+				});
+				
+				var boolEvent="ontouchstart" in window;
+				//console.log(boolEvent);
+				var keyDown=boolEvent?"touchstart":"keydown";
+				document.addEventListener(keyDown,function(e){
+					if(boolEvent)
+					{
+						
+						that.birdDownSpeed=-50;
+					}
+					else
+					{
+						var event=window.event || e;
+						var keyCode=event.which || event.keycode;
+						if(keyCode==32){
+							that.birdDownSpeed=-50;
+
+						}
+					}
+				});
+			}
+		};
+
+		bird.init();
+	</script>
+</body>
+</html>
